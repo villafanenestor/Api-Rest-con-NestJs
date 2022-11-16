@@ -1,6 +1,7 @@
 import {  BadRequestException, Injectable, InternalServerErrorException, NotFoundException } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
 import { isValidObjectId, Model } from 'mongoose';
+import { json } from 'stream/consumers';
 import { CreatePokemonDto } from './dto/create-pokemon.dto';
 import { UpdatePokemonDto } from './dto/update-pokemon.dto';
 import { Pokemon } from './entities/pokemon.entity';
@@ -35,7 +36,7 @@ export class PokemonService {
       return this.pokemonModel.find();
       
     } catch (error) {
-      throw new InternalServerErrorException('Error al buscar pokemons');
+      this.handleExceptions(error);
     }
   }
 
@@ -58,11 +59,43 @@ export class PokemonService {
     return pokemon;
   }
 
-  update(id: number, updatePokemonDto: UpdatePokemonDto) {
-    return `This action updates a #${id} pokemon`;
+  async update(id: string, updatePokemonDto: UpdatePokemonDto) {
+    try {
+      const pokemon: Pokemon = await this.findOne(id);
+      if (updatePokemonDto.nombre) {
+        updatePokemonDto.nombre = updatePokemonDto.nombre.toLocaleLowerCase();
+      }
+
+      await this.pokemonModel.updateOne(updatePokemonDto);
+
+      console.log(updatePokemonDto);
+      console.log(pokemon);
+      return { ...pokemon.toJSON(), ...updatePokemonDto };
+
+    } catch (error) {
+      this.handleExceptions(error);
+
+    }
+
   }
 
-  remove(id: number) {
-    return `This action removes a #${id} pokemon`;
+  async remove(id: string) {
+    const {deletedCount} = await this.pokemonModel.deleteOne({_id: id});
+    if(deletedCount==0){
+      throw new NotFoundException('el id no existe');
+    }
+
+    return;
+  }
+
+
+  private handleExceptions(error: any){
+    if(error.code=11000){
+      throw new BadRequestException(`El parametro ${JSON.stringify(error.keyValue)} ya existe o duplicado`);
+    }
+
+    throw new InternalServerErrorException('Error al buscar pokemons');
+
+
   }
 }
